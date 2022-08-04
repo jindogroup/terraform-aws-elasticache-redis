@@ -149,3 +149,66 @@ resource "aws_security_group_rule" "other_sg_ingress" {
   source_security_group_id = element(var.allowed_security_groups, count.index)
   security_group_id        = aws_security_group.redis.id
 }
+
+locals {
+
+  # if !cluster, then node_count = replica cluster_size, if cluster then node_count = shard*(replica + 1)
+  # Why doing this 'The "count" value depends on resource attributes that cannot be determined until apply'. So pre-calculating
+  member_clusters_count = (var.cluster_mode_enabled
+    ?
+    (var.cluster_mode_num_node_groups * (var.replicas_per_node_group+ 1))
+    :
+    var.num_cache_clusters
+  )
+
+  elasticache_member_clusters = tolist(aws_elasticache_replication_group.redis.0.member_clusters)
+}
+
+
+
+
+resource "aws_cloudwatch_metric_alarm" "cache_cpu" {
+  count               =  var.cloudwatch_metric_alarms_enabled ? local.member_clusters_count : 0
+  alarm_name          = "${element(local.elasticache_member_clusters, count.index)}-cpu-utilization"
+  alarm_description   = "Redis cluster CPU utilization"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ElastiCache"
+  period              = "300"
+  statistic           = "Average"
+
+  threshold = var.alarm_cpu_threshold_percent
+
+  dimensions = {
+    CacheClusterId = element(local.elasticache_member_clusters, count.index)
+  }
+
+  alarm_actions = var.alarm_actions
+  ok_actions    = var.ok_actions
+  depends_on    = [aws_elasticache_replication_group.redis]
+
+}
+
+resource "aws_cloudwatch_metric_alarm" "cache_memory" {
+  count               = var.cloudwatch_metric_alarms_enabled ? local.member_clusters_count : 0
+  alarm_name          = "${element(local.elasticache_member_clusters, count.index)}-freeable-memory"
+  alarm_description   = "Redis cluster freeable memory"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "FreeableMemory"
+  namespace           = "AWS/ElastiCache"
+  period              = "60"
+  statistic           = "Average"
+
+  threshold = var.alarm_memory_threshold_bytes
+
+  dimensions = {
+    CacheClusterId = element(local.elasticache_member_clusters, count.index)
+  }
+
+  alarm_actions = var.alarm_actions
+  ok_actions    = var.ok_actions
+  depends_on    = [aws_elasticache_replication_group.redis]
+
+}
