@@ -156,7 +156,7 @@ locals {
   # Why doing this 'The "count" value depends on resource attributes that cannot be determined until apply'. So pre-calculating
   member_clusters_count = (var.cluster_mode_enabled
     ?
-    (var.cluster_mode_num_node_groups * (var.replicas_per_node_group+ 1))
+    (var.num_node_groups * (var.replicas_per_node_group+ 1))
     :
     var.num_cache_clusters
   )
