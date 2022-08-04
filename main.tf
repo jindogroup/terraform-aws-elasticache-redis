@@ -161,7 +161,7 @@ locals {
     var.num_cache_clusters
   )
 
-  elasticache_member_clusters = tolist(aws_elasticache_replication_group.redis.0.member_clusters)
+  elasticache_member_clusters = tolist(aws_elasticache_replication_group.redis.member_clusters)
 }
 
 
