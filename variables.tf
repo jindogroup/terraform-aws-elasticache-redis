@@ -23,6 +23,13 @@ variable "node_type" {
 variable "subnet_ids" {
   type        = list(string)
   description = "List of VPC Subnet IDs for the cache subnet group."
+  default     = []
+}
+
+variable "subnet_group_name" {
+  type        = string
+  description = "The name of the subnet group. If it is not specified, the module will create one for you"
+  default     = null
 }
 
 variable "vpc_id" {
@@ -34,6 +41,12 @@ variable "ingress_cidr_blocks" {
   type        = list(string)
   description = "List of Ingress CIDR blocks."
   default     = []
+}
+
+variable "egress_cidr_blocks" {
+  type        = list(string)
+  description = "List of Egress CIDR blocks."
+  default     = ["0.0.0.0/0"]
 }
 
 variable "ingress_self" {
@@ -64,6 +77,12 @@ variable "maintenance_window" {
   default     = ""
   type        = string
   description = "Specifies the weekly time range for when maintenance on the cache cluster is performed."
+}
+
+variable "snapshot_name" {
+  type        = string
+  description = "The name of a snapshot from which to restore data into the new node group. Changing the snapshot_name forces a new resource."
+  default     = null
 }
 
 variable "snapshot_window" {
@@ -208,7 +227,7 @@ variable "preferred_cache_cluster_azs" {
 }
 
 variable "multi_az_enabled" {
-  type        = string
+  type        = bool
   description = "Specifies whether to enable Multi-AZ Support for the replication group. If true, `automatic_failover_enabled` must also be enabled. Defaults to false."
   default     = false
 }
@@ -251,4 +270,16 @@ variable "data_tiering_enabled" {
   type        = bool
   default     = false
   description = "Enables data tiering. Data tiering is only supported for replication groups using the r6gd node type. This parameter must be set to true when using r6gd nodes."
+}
+
+variable "user_group_ids" {
+  type        = list(string)
+  default     = null
+  description = "User Group ID to associate with the replication group"
+}
+
+variable "parameter_group_description" {
+  type        = string
+  description = "The description of the ElastiCache parameter group"
+  default     = null
 }

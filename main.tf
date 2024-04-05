@@ -1,8 +1,12 @@
+locals {
+  subnet_group_name = var.subnet_group_name != null ? var.subnet_group_name : aws_elasticache_subnet_group.redis[0].name
+}
+
 resource "aws_elasticache_replication_group" "redis" {
   engine = var.global_replication_group_id == null ? "redis" : null
 
   parameter_group_name = var.global_replication_group_id == null ? aws_elasticache_parameter_group.redis.name : null
-  subnet_group_name    = aws_elasticache_subnet_group.redis.name
+  subnet_group_name    = local.subnet_group_name
   security_group_ids   = concat(var.security_group_ids, [aws_security_group.redis.id])
 
   preferred_cache_cluster_azs = var.preferred_cache_cluster_azs
@@ -16,6 +20,7 @@ resource "aws_elasticache_replication_group" "redis" {
   maintenance_window         = var.maintenance_window
   snapshot_window            = var.snapshot_window
   snapshot_retention_limit   = var.snapshot_retention_limit
+  snapshot_name              = var.snapshot_name
   final_snapshot_identifier  = var.final_snapshot_identifier
   automatic_failover_enabled = var.automatic_failover_enabled && var.num_cache_clusters >= 2 ? true : false
   auto_minor_version_upgrade = var.auto_minor_version_upgrade
@@ -37,6 +42,8 @@ resource "aws_elasticache_replication_group" "redis" {
 
   replicas_per_node_group = var.cluster_mode_enabled ? var.replicas_per_node_group : null
   num_node_groups         = var.cluster_mode_enabled ? var.num_node_groups : null
+
+  user_group_ids = var.user_group_ids
 
   dynamic "log_delivery_configuration" {
     for_each = var.log_delivery_configuration
@@ -68,7 +75,7 @@ resource "random_id" "redis_pg" {
 resource "aws_elasticache_parameter_group" "redis" {
   name        = "${var.name_prefix}-redis-${random_id.redis_pg.hex}"
   family      = var.family
-  description = var.description
+  description = var.parameter_group_description != null ? var.parameter_group_description : "Elasticache parameter group managed by Terraform"
 
   dynamic "parameter" {
     for_each = var.num_node_groups > 0 ? concat([{ name = "cluster-enabled", value = "yes" }], var.parameter) : var.parameter
@@ -78,17 +85,22 @@ resource "aws_elasticache_parameter_group" "redis" {
     }
   }
 
+  # Ignore changes to the description since it will try to recreate the resource
   lifecycle {
-    create_before_destroy = true
+    ignore_changes = [
+      description,
+    ]
   }
 
   tags = var.tags
 }
 
 resource "aws_elasticache_subnet_group" "redis" {
+  count = var.subnet_group_name == null && length(var.subnet_ids) > 0 ? 1 : 0
+
   name        = var.global_replication_group_id == null ? "${var.name_prefix}-redis-sg" : "${var.name_prefix}-redis-sg-replica"
   subnet_ids  = var.subnet_ids
-  description = var.description
+  description = "Elasticache subnet group for ${var.description}"
 
   tags = var.tags
 }
@@ -132,11 +144,13 @@ resource "aws_security_group_rule" "redis_ingress_cidr_blocks" {
 }
 
 resource "aws_security_group_rule" "redis_egress" {
+  count = length(var.egress_cidr_blocks) != 0 ? 1 : 0
+
   type              = "egress"
   from_port         = 0
   to_port           = 0
   protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.egress_cidr_blocks
   security_group_id = aws_security_group.redis.id
 }
 
